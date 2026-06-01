@@ -2,8 +2,6 @@
 
 Kobalt is a kernel written from scratch (not totally, but very mostly) for x86_64. No libc, no Linux under the hood, just C and ASM. It boots, for now in QEMU, has a working scheduler, drivers, filesystems, and a security subsystem that would refuse to load its own drivers if you messed with the binary.
 
-It's a hobby project, but it's not a toy.
-
 ---
 
 ## What's in here
@@ -63,6 +61,8 @@ clang -DTYKID_FUZZ -fsanitize=fuzzer,address -O1 \
 ```
 
 ---
+
+**Website? Docs? Still in development**
 
 ## Contributing, testing, breaking things
 
