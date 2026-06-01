@@ -62,7 +62,9 @@ clang -DTYKID_FUZZ -fsanitize=fuzzer,address -O1 \
 
 ---
 
-**Website? Docs? Still in development**
+## **Website? Docs? Still in development**
+
+---
 
 ## Contributing, testing, breaking things
 
