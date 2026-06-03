@@ -78,6 +78,54 @@ Before submitting a patch to the HDA subsystem, run through this checklist:
 
 Always build with `NDEBUG` undefined first to exercise the debug paths, then confirm a clean release build.
 
+### AMX (Intel Advanced Matrix Extensions)
+ 
+AMX support lives under `arch/x86_64/amx/`, with the assembly primitives in `arch/x86_64/amx_context.S` and the scheduler hooks in `kern/amx_sched.c`. It's a security-sensitive area because tile state is per-thread and a context leak would expose one thread's matrix data to another.
+ 
+**File layout — know what goes where:**
+ 
+| File | What it owns |
+|------|-------------|
+| `amx_init.c` | CPUID detection, BSP + AP init |
+| `amx_xcr.c` | XCR0 enable/disable |
+| `amx_state.c` | Per-thread context, `#NM` handler |
+| `amx_context.S` | `XSAVES`, `XRSTORS`, raw tile instruction encodings |
+| `amx_tile.c` | `LDTILECFG` wrapper, tile config API |
+| `amx_tmul.c` | Tile multiply dispatch wrappers |
+| `amx_bf16.c` / `amx_int8.c` | Matmul kernels |
+| `kern/amx_sched.c` | Scheduler save/restore hooks |
+| `mm/amx_mem.c` | Aligned context buffer allocator |
+ 
+**The four security layers — don't break them:**
+ 
+AMX access is guarded by four independent layers. A patch that weakens or bypasses any one of them without a very clear reason won't land.
+ 
+1. **XFD gating.** `MSR_IA32_XFD` bit 18 is set at boot and re-armed after every context switch away from a tile-using thread. The `#NM` handler in `amx_state.c` is the *only* code path that clears it. If you're touching context switch paths, verify the XFD bit is being re-armed correctly on switch-out.
+2. **`amx_permitted` flag.** The `#NM` handler kills the thread immediately if `t->amx_permitted` is 0. This flag is set at thread creation time based on policy. Don't add a path that sets it outside of the established policy check.
+3. **TYKID recheck.** Even after a thread has `amx_permitted = 1`, the `#NM` handler calls `tykid_recheck_all()` before allocating tile state. If TYKID returns anything other than `TYKID_OK`, the thread is killed. This is intentional — a hardware topology change after boot can revoke tile access retroactively. Don't short-circuit this check.
+4. **Context signature.** Once tile context is allocated, it's bound to the thread via:
+   ```c
+   t->amx_signature = (uint64_t)(uintptr_t)t
+                    ^ (uint64_t)t->vdeadline
+                    ^ KOBALT_KERNEL_IDENT;
+   ```
+   A context buffer moved to a different thread, or a thread with a tampered `vdeadline`, will fail the signature check. If you're changing thread struct layout or scheduler fields, verify this signature is still valid after your change.
+**Assembly (`amx_context.S`):**
+ 
+This file is assembled with NASM in 64-bit mode. All raw tile instruction encodings (`TILERELEASE`, `LDTILECFG`, `TDPBF16PS`, etc.) live here — don't scatter `db` bytes through C files. `XSAVES`/`XRSTORS` use only the AMX component bits (`0x60000` — bit 17 `XTILECFG`, bit 18 `XTILEDATA`), leaving FPU/SSE/AVX state untouched. If you add a new tile instruction encoding, put it here with a comment showing the VEX encoding breakdown.
+ 
+**`TILERELEASE` on context switch-in:**
+ 
+When a thread that has *never* used AMX is scheduled in, `TILERELEASE` is issued to put the AMX unit back into an unconfigured state. This prevents the incoming thread from inheriting tile configuration from whoever ran before it. If you're modifying the context switch path, make sure this call is not being skipped for threads with `amx_context == NULL`.
+ 
+**AP initialisation:**
+ 
+Each application processor needs its own `XCR0` and `XFD` setup — these are per-CPU registers. `amx_ap_init()` handles this and skips immediately if `g_amx_supported` is 0. If you're adding a new CPU bringup path, it needs to call `amx_ap_init()`.
+ 
+**`KOBALT_KERNEL_IDENT` in the signature:**
+ 
+The context signature mixes in `KOBALT_KERNEL_IDENT` (`0xA3F7C219DE40B851ULL`). This is baked in at compile time. Don't change this value without understanding that it invalidates all existing context signatures and all TYKID-derived keys simultaneously.
+
 ### Other Subsystems
 
 If you're touching FlatFS, the POSIX layer, the USB stack, or lwIP networking, read the relevant documentation in the docs site before submitting. These subsystems have non-obvious invariants that aren't always visible from the code alone.
