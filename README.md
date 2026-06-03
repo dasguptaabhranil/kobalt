@@ -59,27 +59,3 @@ clang -DTYKID_FUZZ -fsanitize=fuzzer,address -O1 \
       -o tykid_fuzz
 ./tykid_fuzz corpus/
 ```
-
----
-
-## **Website? Docs? Still in development**
-
----
-
-## Contributing, testing, breaking things
-
-If you want to poke around:
-
-- Build with `NDEBUG` undefined first. The debug paths (`hda_debug_dump()`, `hda_codec_debug_dump()`, `hda_mixer_debug_dump()`) print to UART and the framebuffer console via `kprintf`. Good first stop when something's wrong.
-- TYKID has a libFuzzer harness (`tykid_fuzz.c`). Throw a corpus at it, see what breaks.
-- To test TYKID rejection: modify a driver binary after it's been signed. TYKID's HMAC check (stage 3 of the threat pipeline) will catch it and block the load.
-- The watchdog re-HMACs every active driver every ~30 s. If you want to test escalation, you can trigger repeated failures and watch it enter safe-mode, then shutdown.
-
-If you're sending a patch:
-
-- New verb, error code, or format? Add it to `hda.h` / the relevant enum — not buried in a `.c` file.
-- New codec submodule? Wire `g_hda` fields through accessor functions. Don't touch the struct directly.
-- New TYKID feature? Make sure `hda_debug_dump()` still reflects the state accurately.
-- Always do a clean release build after testing debug — the debug stubs compile away entirely under `NDEBUG`.
-
----
