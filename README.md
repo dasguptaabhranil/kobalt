@@ -22,7 +22,7 @@ The driver security gate. Before any driver loads, TYKID:
 All TYKID source lives under `src/security/tykid/`.
 
 **Subsystems**
-- FlatFS and KangarooFS filesystems
+- FlatFS, FAT & VFS-Family filesystems
 - POSIX layer (`kposixz`)
 - USB stack
 - lwIP networking
