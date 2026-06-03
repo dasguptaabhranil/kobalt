@@ -1,6 +1,6 @@
 # Contributing to Kobalt
 
-Thanks for taking the time to look at this. Kobalt is a hobby kernel project and it moves at its own pace, so contributions are welcome as long as they're focused and easy to follow.
+Thanks for taking the time to look at this. Kobalt is a Solo kernel project and it moves at its own pace, so contributions are welcome as long as they're focused and easy to follow.
 
 ## Who Are You?
 
